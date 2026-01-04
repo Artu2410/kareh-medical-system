@@ -1,4 +1,4 @@
-import { Card, CardContent, Badge, Button } from '@/components/ui'
+import { Card, CardContent, Badge, Button, Input } from '@/components/ui'
 import { Mail, Phone, Edit2, Trash2, Eye } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { calculateAge } from '@/lib/utils'
@@ -8,8 +8,11 @@ export function PatientsTable({
   onEdit,
   onDelete,
   onView,
+  onInlineEdit, // Nuevo prop para edición in-line
   loading = false,
 }) {
+  const [editing, setEditing] = React.useState({ id: null, field: null });
+  const [draft, setDraft] = React.useState("");
   // 1. Estado de carga
   if (loading) {
     return (
@@ -68,11 +71,50 @@ export function PatientsTable({
                             <Mail className="w-3.5 h-3.5" /> {patient.email}
                           </span>
                         )}
-                        {patient.phone && (
-                          <span className="flex items-center gap-1 text-xs text-slate-500">
-                            <Phone className="w-3.5 h-3.5" /> {patient.phone}
-                          </span>
-                        )}
+                        {/* Teléfono editable */}
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <Phone className="w-3.5 h-3.5" />
+                          {editing.id === patient.id && editing.field === 'phone' ? (
+                            <Input
+                              value={draft}
+                              onChange={e => setDraft(e.target.value)}
+                              onBlur={() => {
+                                setEditing({ id: null, field: null });
+                                if (draft !== patient.phone && onInlineEdit) onInlineEdit(patient.id, 'phone', draft);
+                              }}
+                              autoFocus
+                              className="glassmorphism-input w-24"
+                            />
+                          ) : (
+                            <span onDoubleClick={e => {
+                              e.stopPropagation();
+                              setEditing({ id: patient.id, field: 'phone' });
+                              setDraft(patient.phone || '');
+                            }}>{patient.phone || <span className="italic text-slate-400">Sin teléfono</span>}</span>
+                          )}
+                        </span>
+                        {/* Obra social editable */}
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <span className="font-bold">Obra Social:</span>
+                          {editing.id === patient.id && editing.field === 'insurance' ? (
+                            <Input
+                              value={draft}
+                              onChange={e => setDraft(e.target.value)}
+                              onBlur={() => {
+                                setEditing({ id: null, field: null });
+                                if (draft !== (patient.insurance || '') && onInlineEdit) onInlineEdit(patient.id, 'insurance', draft);
+                              }}
+                              autoFocus
+                              className="glassmorphism-input w-32"
+                            />
+                          ) : (
+                            <span onDoubleClick={e => {
+                              e.stopPropagation();
+                              setEditing({ id: patient.id, field: 'insurance' });
+                              setDraft(patient.insurance || '');
+                            }}>{patient.insurance || <span className="italic text-slate-400">Sin obra social</span>}</span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>

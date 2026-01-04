@@ -1,76 +1,144 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
-// Helper function for API calls
-async function callApi(endpoint, method = 'GET', data = null, authRequired = true) {
-  const headers = {
+/**
+ * Obtener token de autenticación
+ */
+function getAuthToken() {
+  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+}
+
+/**
+ * Headers con autenticación
+ */
+function getHeaders() {
+  const token = getAuthToken();
+  return {
     'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
   };
+}
 
-  // TODO: Implement actual authentication token retrieval
-  // For now, assuming token is stored in localStorage after login
-  const AUTH_TOKEN = localStorage.getItem('token'); 
-
-  if (authRequired && AUTH_TOKEN) {
-    headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
-  }
-
-  const config = {
-    method,
-    headers,
-  };
-
-  if (data) {
-    config.body = JSON.stringify(data);
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+/**
+ * Manejo centralizado de respuestas y errores
+ */
+async function handleResponse(response) {
+  if (response.status === 204) return null;
+  
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || `API request failed with status ${response.status}`);
+    throw new Error(data.error || `Error ${response.status}: ${response.statusText}`);
   }
-
-  // Handle 204 No Content for DELETE requests
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
+  return data;
 }
 
+/**
+ * GET /api/patients
+ */
 export async function getPatients() {
-  return callApi('/patients');
+  const response = await fetch(`${API_BASE_URL}/patients`, {
+    headers: getHeaders()
+  });
+  return handleResponse(response);
 }
 
+/**
+ * GET /api/patients/:id
+ */
 export async function getPatientById(id) {
-  return callApi(`/patients/${id}`);
+  const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
+    headers: getHeaders()
+  });
+  return handleResponse(response);
 }
 
+/**
+ * POST /api/patients
+ */
 export async function addPatient(patientData) {
-  return callApi('/patients', 'POST', patientData);
+  console.log('🔄 Enviando datos del paciente:', patientData);
+  const response = await fetch(`${API_BASE_URL}/patients`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(patientData)
+  });
+  return handleResponse(response);
 }
 
+/**
+ * PUT /api/patients/:id
+ */
 export async function updatePatient(id, patientData) {
-  return callApi(`/patients/${id}`, 'PUT', patientData);
+  console.log(`🔄 Actualizando paciente ${id}:`, patientData);
+  const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(patientData)
+  });
+  return handleResponse(response);
 }
 
+/**
+ * DELETE /api/patients/:id
+ */
 export async function deletePatient(id) {
-  return callApi(`/patients/${id}`, 'DELETE');
+  const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
+    method: 'DELETE',
+    headers: getHeaders()
+  });
+  return handleResponse(response);
 }
 
-// TODO: Implement actual search and filter if needed on the frontend
-// For now, search and filter will be done by getting all patients and filtering client-side
+/**
+ * GET /api/patients/search?dni=...
+ */
+export async function searchPatientByDni(dni) {
+  const response = await fetch(`${API_BASE_URL}/patients/search?dni=${encodeURIComponent(dni)}`, {
+    headers: getHeaders()
+  });
+  if (response.status === 404) return null;
+  return handleResponse(response);
+}
+
+/**
+ * Búsqueda local combinada
+ */
 export async function searchPatients(query) {
   const allPatients = await getPatients();
   const lowercaseQuery = query.toLowerCase();
-  return allPatients.filter(
-    p => p.name.toLowerCase().includes(lowercaseQuery) ||
-         p.email.toLowerCase().includes(lowercaseQuery) ||
-         (p.phone && p.phone.includes(query)) 
-  );
+  
+  return allPatients.filter(p => {
+    const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
+    const dni = p.dni?.toString() || '';
+    return fullName.includes(lowercaseQuery) || dni.includes(lowercaseQuery);
+  });
 }
 
+/**
+ * FUNCION REQUERIDA POR TU INDEX.JS
+ * Filtrar por estado (Activo/Inactivo)
+ */
 export async function getPatientsByStatus(status) {
-  const allPatients = await getPatients();
-  return allPatients.filter(p => p.status === status);
+  try {
+    const allPatients = await getPatients();
+    return allPatients.filter(p => p.status === status);
+  } catch (error) {
+    console.error(`Error al filtrar pacientes por estado ${status}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Validaciones básicas
+ */
+export function validatePatientData(data) {
+  const errors = {};
+  if (!data.firstName?.trim()) errors.firstName = 'El nombre es requerido';
+  if (!data.lastName?.trim()) errors.lastName = 'El apellido es requerido';
+  if (!data.dni?.trim()) errors.dni = 'El DNI es requerido';
+  
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
 }

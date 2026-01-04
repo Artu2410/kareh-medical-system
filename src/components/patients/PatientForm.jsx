@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button } from '@/components/ui'
 import { X } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const initialFormState = {
   firstName: '',
@@ -76,8 +77,16 @@ export function PatientForm({
     }
   }
 
+  // Card con glassmorphism y animación
   return (
-    <Card className="border-none shadow-none flex flex-col h-full max-h-[90vh]">
+    <motion.div
+      initial={{ opacity: 0, y: 30, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -30, scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+    >
+      <Card className="backdrop-blur-xl bg-white/70 border border-white/20 shadow-2xl shadow-slate-500/10 transition-all duration-500 flex flex-col h-full max-h-[90vh]">
+      {/* Encabezado del formulario */}
       <CardHeader className="flex flex-row items-center justify-between border-b px-6 py-4">
         <CardTitle className="text-xl font-bold text-slate-800">
           {patient ? 'Editar Paciente' : 'Nuevo Paciente'}
@@ -91,6 +100,7 @@ export function PatientForm({
         </button>
       </CardHeader>
       
+      {/* Contenido principal del formulario */}
       <CardContent className="flex-1 overflow-y-auto p-6">
         <form id="patient-form" onSubmit={handleSubmit} className="space-y-8">
           {/* SECCIÓN 1: DATOS PERSONALES */}
@@ -169,6 +179,7 @@ export function PatientForm({
         </form>
       </CardContent>
 
+      {/* Acciones del formulario */}
       <div className="border-t p-6 bg-slate-50 flex gap-3">
         <Button
           type="submit"
@@ -187,6 +198,7 @@ export function PatientForm({
           Cancelar
         </Button>
       </div>
-    </Card>
+      </Card>
+    </motion.div>
   )
 }

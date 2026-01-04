@@ -1,3 +1,41 @@
+import { AreaChart, Area } from 'recharts';
+
+export function IncomeVsExpenseChart({ data }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>Ingresos vs Egresos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="month" stroke="#64748B" />
+                <YAxis stroke="#64748B" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                  }}
+                />
+                <Legend />
+                <Area type="monotone" dataKey="ingresos" stroke="#4ade80" fill="#bbf7d0" name="Ingresos" />
+                <Area type="monotone" dataKey="egresos" stroke="#f87171" fill="#fecaca" name="Egresos" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import {
   LineChart,

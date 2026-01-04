@@ -1,3 +1,4 @@
+import { useToast } from '@/components/ui';
 const API_URL = '/api';
 
 /**
@@ -22,17 +23,23 @@ function getHeaders() {
  * Crear turno(s) - máximo 5 por slot, soporte paquetes 10
  */
 export async function createAppointment(payload) {
+  const toast = useToast && useToast();
   const response = await fetch(`${API_URL}/appointments`, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify(payload)
   });
-
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Error al crear turno');
+    let errorMessage = 'Error al crear turno';
+    try {
+      const error = await response.json();
+      errorMessage = error.error || errorMessage;
+    } catch {}
+    if (response.status === 400 || response.status === 401) {
+      toast && toast(errorMessage, 'error');
+    }
+    throw new Error(errorMessage);
   }
-
   return response.json();
 }
 

@@ -1,3 +1,4 @@
+import { useToast } from '@/components/ui';
 const API_URL = '/api';
 
 /**
@@ -33,27 +34,25 @@ const formatDateParam = (date) => {
  * Registrar ingreso/egreso en caja chica
  */
 export async function createCashFlow(type, amount, concept, method, notes = null, category = 'OTHER', receipt = null, date = null, patientId = null) {
+  const toast = useToast && useToast();
   try {
     const url = `${API_URL}/cashflow`;
-    
     const response = await fetch(url, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({
         type,
-        amount: parseFloat(amount), // Aseguramos que viaje como número
+        amount: parseFloat(amount),
         concept,
         method,
         notes,
         category,
         receipt,
         date,
-        patientId, // Añadido
+        patientId,
       })
     });
-
     const responseText = await response.text();
-    
     if (!response.ok) {
       let errorMessage = 'Error al registrar flujo de caja';
       try {
@@ -62,14 +61,18 @@ export async function createCashFlow(type, amount, concept, method, notes = null
       } catch (e) {
         errorMessage = `Error ${response.status}: ${responseText}`;
       }
+      if (response.status === 400 || response.status === 401) {
+        toast && toast(errorMessage, 'error');
+      }
       throw new Error(errorMessage);
     }
-
     return JSON.parse(responseText);
   } catch (err) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
+      toast && toast('No se puede conectar con el servidor. Verifica que el backend esté corriendo.', 'error');
       throw new Error('No se puede conectar con el servidor. Verifica que el backend esté corriendo.');
     }
+    toast && toast(err.message, 'error');
     throw err;
   }
 }
