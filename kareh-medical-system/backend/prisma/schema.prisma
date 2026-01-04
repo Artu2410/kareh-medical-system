@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model Patient {
@@ -13,6 +13,8 @@ model Patient {
   lastName      String
   dni           String    @unique
   dob           DateTime
+  email         String?
+  gender        String? 
   phone         String?
   address       String?
   hasCancer     Boolean   @default(false)

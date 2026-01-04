@@ -1,3 +1,8 @@
+import { BarChart2 } from "lucide-react";
+        <NavLink to="/reports" className={navItemClass}>
+          <BarChart2 size={18} />
+          Reportes
+        </NavLink>
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -5,6 +10,7 @@ import {
   Users,
   Settings,
   DollarSign,
+  FileText,
 } from "lucide-react";
 
 const navItemClass = ({ isActive }) =>
@@ -51,6 +57,11 @@ export default function Sidebar() {
         <NavLink to="/cashflow" className={navItemClass}>
           <DollarSign size={18} />
           Caja Chica
+        </NavLink>
+
+        <NavLink to="/evolutions" className={navItemClass}>
+          <FileText size={18} />
+          Evoluciones
         </NavLink>
 
         <NavLink to="/settings" className={navItemClass}>

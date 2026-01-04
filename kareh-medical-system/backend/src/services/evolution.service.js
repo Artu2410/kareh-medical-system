@@ -1,3 +1,29 @@
+/**
+ * Editar evolución clínica
+ */
+async function updateEvolution(evolutionId, data) {
+  // Solo campos SOAP, dolor, notas, diagnosis, fecha
+  return prisma.evolution.update({
+    where: { id: evolutionId },
+    data: {
+      subjective: data.subjective,
+      objective: data.objective,
+      assessment: data.assessment,
+      plan: data.plan,
+      pain_scale: data.pain_scale,
+      notes: data.notes,
+      diagnosis: data.diagnosis,
+      date: data.date,
+    }
+  });
+}
+
+/**
+ * Borrar evolución clínica
+ */
+async function deleteEvolution(evolutionId) {
+  return prisma.evolution.delete({ where: { id: evolutionId } });
+}
 const prisma = require('../prismaClient');
 
 /**
@@ -137,5 +163,7 @@ module.exports = {
   createEvolution,
   getPatientEvolutions,
   getPatientMedicalHistory,
-  addDiagnosis
+  addDiagnosis,
+  updateEvolution,
+  deleteEvolution
 };

@@ -1,42 +1,55 @@
 const prisma = require('../prismaClient');
 
-const createPatient = async (patientData) => {
-  return prisma.patient.create({
-    data: patientData,
+const updatePatient = async (id, patientData) => {
+  // Limpiamos y mapeamos los datos para que coincidan con schema.prisma
+  const cleanData = {
+    firstName: patientData.firstName || patientData.nombre || "",
+    lastName: patientData.lastName || patientData.apellido || "",
+    dni: String(patientData.dni),
+    // Resolvemos la inconsistencia: acepta 'dob' o 'birthDate'
+    dob: patientData.dob ? new Date(patientData.dob) : 
+         patientData.birthDate ? new Date(patientData.birthDate) : undefined,
+    email: patientData.email || null,
+    gender: patientData.gender || "M",
+    phone: patientData.phone || null,
+    address: patientData.address || null,
+    hasCancer: Boolean(patientData.hasCancer),
+    hasPacemaker: Boolean(patientData.hasPacemaker),
+    hasBypass: Boolean(patientData.hasBypass),
+    socialWorkId: patientData.socialWorkId || null,
+  };
+
+  // Eliminamos campos undefined para evitar errores de validación de Prisma
+  Object.keys(cleanData).forEach(key => cleanData[key] === undefined && delete cleanData[key]);
+
+  return prisma.patient.update({
+    where: { id: id },
+    data: cleanData,
   });
 };
 
-const getPatients = async () => {
-  return prisma.patient.findMany({
-    orderBy: {
-      createdAt: 'desc',
+const createPatient = async (patientData) => {
+  return prisma.patient.create({
+    data: {
+      firstName: patientData.firstName,
+      lastName: patientData.lastName,
+      dni: String(patientData.dni),
+      dob: new Date(patientData.dob || patientData.birthDate),
+      email: patientData.email || null,
+      gender: patientData.gender || "M",
+      phone: patientData.phone || null,
+      address: patientData.address || null,
+      hasCancer: Boolean(patientData.hasCancer),
+      hasPacemaker: Boolean(patientData.hasPacemaker),
+      hasBypass: Boolean(patientData.hasBypass),
+      socialWorkId: patientData.socialWorkId || null,
     },
   });
 };
 
-const getPatientById = async (id) => {
-  return prisma.patient.findUnique({
-    where: { id: parseInt(id) },
-  });
-};
-
-const updatePatient = async (id, patientData) => {
-  return prisma.patient.update({
-    where: { id: parseInt(id) },
-    data: patientData,
-  });
-};
-
-const deletePatient = async (id) => {
-  return prisma.patient.delete({
-    where: { id: parseInt(id) },
-  });
-};
-
 module.exports = {
+  getPatients: async () => prisma.patient.findMany({ orderBy: { createdAt: 'desc' } }),
   createPatient,
-  getPatients,
-  getPatientById,
   updatePatient,
-  deletePatient,
+  deletePatient: async (id) => prisma.patient.delete({ where: { id: id } }),
 };

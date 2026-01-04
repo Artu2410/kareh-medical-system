@@ -1,14 +1,11 @@
 const prisma = require('../prismaClient');
+const { format } = require('date-fns'); // Asegúrate de tener date-fns instalado en el backend
 
 const MAX_APPOINTMENTS_PER_SLOT = parseInt(process.env.MAX_APPOINTMENTS_PER_SLOT || '5', 10);
 const PACKAGE_SIZE = parseInt(process.env.PACKAGE_SIZE || '10', 10);
 
 /**
  * Crear turno(s) con validaciones críticas
- * - Máximo 5 citas por slot/profesional
- * - Soporte para paquetes de 10 sesiones
- * - Crear historia clínica automáticamente
- * - Transacción serializable para evitar race conditions
  */
 async function createAppointments(payload) {
   const {
@@ -16,256 +13,170 @@ async function createAppointments(payload) {
     professionalId,
     therapyType = 'FKT',
     appointmentType = 'single',
-    dates,
+    dates, 
     diagnosis
   } = payload;
 
-  // Validaciones básicas
-  if (!professionalId || typeof professionalId !== 'string') {
-    throw new Error('professionalId es requerido y debe ser string');
-  }
-
-  if (!patientData || typeof patientData !== 'object') {
-    throw new Error('Datos del paciente requeridos');
-  }
-
-  if (!Array.isArray(dates) || dates.length === 0) {
-    throw new Error('Se debe enviar al menos una fecha en el arreglo `dates`');
-  }
-
+  if (!professionalId) throw new Error('professionalId es requerido');
+  if (!patientData?.dni) throw new Error('DNI del paciente es obligatorio');
+  if (!Array.isArray(dates) || dates.length === 0) throw new Error('Se requiere al menos una fecha');
+  
   if (appointmentType === 'package' && dates.length !== PACKAGE_SIZE) {
-    throw new Error(`Los paquetes deben incluir exactamente ${PACKAGE_SIZE} fechas`);
+    throw new Error(`Los paquetes deben incluir exactamente ${PACKAGE_SIZE} sesiones`);
   }
 
-  // Normalizar y validar fechas
-  const normalizedSlots = dates.map(d => {
-    const date = new Date(d);
-    if (isNaN(date.getTime())) {
-      throw new Error(`Fecha inválida: ${d}`);
-    }
-    return date.toISOString();
-  });
-
-  // Ejecutar en transacción serializable para evitar race conditions
-  const result = await prisma.$transaction(
-    async (tx) => {
-      // Validar profesional existe
-      const professional = await tx.professional.findUnique({
-        where: { id: professionalId }
-      });
-      if (!professional) {
-        throw new Error('Profesional no encontrado');
+  return await prisma.$transaction(async (tx) => {
+    // A. Upsert del Paciente
+    const patient = await tx.patient.upsert({
+      where: { dni: patientData.dni },
+      update: {
+        firstName: patientData.firstName,
+        lastName: patientData.lastName,
+        phone: patientData.phone,
+        socialWorkId: patientData.socialWorkId
+      },
+      create: {
+        firstName: patientData.firstName,
+        lastName: patientData.lastName,
+        dni: patientData.dni,
+        dob: patientData.dob ? new Date(patientData.dob) : null,
+        phone: patientData.phone,
+        socialWorkId: patientData.socialWorkId
       }
+    });
 
-      // Upsert paciente por DNI (clave única)
-      if (!patientData.dni) {
-        throw new Error('DNI del paciente es obligatorio');
-      }
-
-      const patient = await tx.patient.upsert({
-        where: { dni: patientData.dni },
-        update: {
-          firstName: patientData.firstName,
-          lastName: patientData.lastName,
-          dob: new Date(patientData.dob),
-          phone: patientData.phone || null,
-          address: patientData.address || null,
-          hasCancer: !!patientData.hasCancer,
-          hasPacemaker: !!patientData.hasPacemaker,
-          hasBypass: !!patientData.hasBypass,
-          socialWorkId: patientData.socialWorkId || null
-        },
-        create: {
-          firstName: patientData.firstName,
-          lastName: patientData.lastName,
-          dni: patientData.dni,
-          dob: new Date(patientData.dob),
-          phone: patientData.phone || null,
-          address: patientData.address || null,
-          hasCancer: !!patientData.hasCancer,
-          hasPacemaker: !!patientData.hasPacemaker,
-          hasBypass: !!patientData.hasBypass,
-          socialWorkId: patientData.socialWorkId || null
+    // B. Validar Disponibilidad de Slots
+    const conflictingSlots = [];
+    for (const d of dates) {
+      const slotDate = new Date(d);
+      const count = await tx.appointment.count({
+        where: {
+          professionalId,
+          slot: slotDate.toISOString(),
+          status: { in: ['SCHEDULED', 'CONFIRMED'] }
         }
       });
-
-      // VALIDAR DISPONIBILIDAD PARA CADA FECHA
-      // Esta es la validación crítica: máximo 5 citas por slot
-      const conflictingSlots = [];
-      for (const slot of normalizedSlots) {
-        const count = await tx.appointment.count({
-          where: {
-            professionalId,
-            slot,
-            status: { in: ['SCHEDULED', 'CONFIRMED'] }
-          }
-        });
-        if (count >= MAX_APPOINTMENTS_PER_SLOT) {
-          conflictingSlots.push(slot);
-        }
+      if (count >= MAX_APPOINTMENTS_PER_SLOT) {
+        conflictingSlots.push(format(slotDate, 'dd/MM HH:mm'));
       }
-
-      if (conflictingSlots.length > 0) {
-        throw new Error(
-          `Cupos agotados para los horarios: ${conflictingSlots.join(', ')}. Máximo permitido: ${MAX_APPOINTMENTS_PER_SLOT}`
-        );
-      }
-
-      // Crear o asegurarse de que exista una historia clínica
-      let history = await tx.medicalHistory.findFirst({
-        where: { patientId: patient.id }
-      });
-      if (!history) {
-        history = await tx.medicalHistory.create({
-          data: { patientId: patient.id }
-        });
-      }
-
-      // Si hay diagnóstico inicial, registrar en historia clínica
-      if (diagnosis && diagnosis.trim()) {
-        await tx.diagnosis.create({
-          data: {
-            historyId: history.id,
-            description: diagnosis.trim()
-          }
-        });
-      }
-
-      // Crear PackageGroup si es paquete de 10
-      let packageGroup = null;
-      if (appointmentType === 'package') {
-        packageGroup = await tx.packageGroup.create({
-          data: { patientId: patient.id }
-        });
-      }
-
-      // CREAR TODOS LOS TURNOS
-      const created = [];
-      for (let i = 0; i < normalizedSlots.length; i++) {
-        const isoSlot = normalizedSlots[i];
-        const isFirstSession = appointmentType === 'package' ? i === 0 : true;
-
-        const appt = await tx.appointment.create({
-          data: {
-            patientId: patient.id,
-            professionalId,
-            date: new Date(isoSlot),
-            slot: isoSlot,
-            therapyType,
-            appointmentType,
-            diagnosis: diagnosis || null,
-            isFirstSession,
-            packageGroupId: packageGroup?.id || null
-          }
-        });
-        created.push(appt);
-      }
-
-      return {
-        success: true,
-        patient,
-        history,
-        packageGroup,
-        appointments: created,
-        message: `${created.length} turno(s) creado(s) exitosamente`
-      };
-    },
-    {
-      isolationLevel: 'Serializable',
-      timeout: 10000
     }
-  );
 
-  return result;
+    if (conflictingSlots.length > 0) {
+      throw new Error(`Sin cupos en: ${conflictingSlots.join(', ')}`);
+    }
+
+    // C. Historia Clínica e Diagnóstico
+    const history = await tx.medicalHistory.upsert({
+      where: { patientId: patient.id },
+      update: {},
+      create: { patientId: patient.id }
+    });
+
+    if (diagnosis?.trim()) {
+      await tx.diagnosis.create({
+        data: { historyId: history.id, description: diagnosis.trim() }
+      });
+    }
+
+    // D. Grupo de Paquete
+    let packageGroup = null;
+    if (appointmentType === 'package') {
+      packageGroup = await tx.packageGroup.create({
+        data: { patientId: patient.id }
+      });
+    }
+
+    // E. Creación de los Turnos
+    const createdAppointments = [];
+    for (let i = 0; i < dates.length; i++) {
+      const dateObj = new Date(dates[i]);
+      const appt = await tx.appointment.create({
+        data: {
+          patientId: patient.id,
+          professionalId,
+          date: dateObj,
+          slot: dateObj.toISOString(),
+          therapyType,
+          appointmentType,
+          diagnosis: diagnosis || null,
+          isFirstSession: i === 0,
+          packageGroupId: packageGroup?.id || null,
+          status: 'SCHEDULED'
+        }
+      });
+      createdAppointments.push(appt);
+    }
+
+    return {
+      success: true,
+      patient,
+      appointments: createdAppointments,
+      message: `${createdAppointments.length} sesiones agendadas correctamente.`
+    };
+  }, { isolationLevel: 'Serializable' });
 }
 
 /**
- * Obtener disponibilidad de un profesional en un rango de fechas
+ * Obtiene los "slots" (franjas horarias) que ya no tienen cupo para un profesional en un rango de fechas.
+ * Un slot se considera lleno si el número de citas programadas alcanza MAX_APPOINTMENTS_PER_SLOT.
  */
 async function getAvailability(professionalId, startDate, endDate) {
-  if (!professionalId) {
-    throw new Error('professionalId es requerido');
+  if (!professionalId || !startDate || !endDate) {
+    throw new Error('Se requieren professionalId, startDate y endDate.');
   }
 
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    throw new Error('Fechas inválidas');
-  }
-
-  const appointments = await prisma.appointment.groupBy({
-    by: ['slot'],
+  const appointmentsInPeriod = await prisma.appointment.findMany({
     where: {
       professionalId,
       date: {
         gte: start,
-        lte: end
+        lte: end,
       },
-      status: { in: ['SCHEDULED', 'CONFIRMED'] }
+      status: { in: ['SCHEDULED', 'CONFIRMED'] },
     },
-    _count: { id: true }
+    select: {
+      slot: true,
+    },
   });
 
-  // Construir mapa de disponibilidad
-  const availability = {};
-  appointments.forEach(({ slot, _count }) => {
-    availability[slot] = {
-      count: _count.id,
-      available: MAX_APPOINTMENTS_PER_SLOT - _count.id,
-      isFull: _count.id >= MAX_APPOINTMENTS_PER_SLOT
-    };
-  });
+  // Contamos cuántas citas hay en cada slot
+  const slotCounts = appointmentsInPeriod.reduce((acc, app) => {
+    acc[app.slot] = (acc[app.slot] || 0) + 1;
+    return acc;
+  }, {});
 
-  return availability;
+  // Filtramos los slots que han alcanzado o superado el máximo de citas
+  const unavailableSlots = Object.keys(slotCounts).filter(
+    (slot) => slotCounts[slot] >= MAX_APPOINTMENTS_PER_SLOT
+  );
+
+  return unavailableSlots;
 }
 
 /**
  * Buscar paciente por DNI
  */
 async function searchPatientByDni(dni) {
-  if (!dni || typeof dni !== 'string') {
-    throw new Error('DNI requerido');
-  }
-
-  const patient = await prisma.patient.findUnique({
-    where: { dni: dni.trim() },
-    include: {
-      histories: {
-        include: {
-          diagnoses: true
-        }
-      },
-      appointments: {
-        include: {
-          professional: true
-        },
-        orderBy: { date: 'desc' },
-        take: 10
-      }
-    }
+  return await prisma.patient.findUnique({
+    where: { dni },
+    include: { socialWork: true }
   });
-
-  return patient;
 }
 
 /**
- * Obtener citas de un paciente
+ * Obtener turnos de un paciente
  */
 async function getPatientAppointments(patientId) {
-  const appointments = await prisma.appointment.findMany({
+  return await prisma.appointment.findMany({
     where: { patientId },
-    include: {
-      professional: true,
-      packageGroup: true,
-      evolutions: true
-    },
-    orderBy: { date: 'asc' }
+    orderBy: { date: 'desc' }
   });
-
-  return appointments;
 }
 
+// EXPORTACIÓN UNIFICADA
 module.exports = {
   createAppointments,
   getAvailability,

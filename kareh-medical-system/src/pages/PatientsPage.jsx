@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout'
 import {
   PatientsTable,
@@ -10,14 +11,34 @@ import { getPatients, addPatient, updatePatient, deletePatient } from '@/service
 import { Modal, Button } from '@/components/ui'
 
 export function PatientsPage() {
-  const { loading } = usePatients()
-  const [displayPatients, setDisplayPatients] = useState(getPatients())
+  const { loading: hookLoading } = usePatients()
+  // 1. SIEMPRE inicializar como array vacío para evitar errores de .map()
+  const [displayPatients, setDisplayPatients] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editingPatient, setEditingPatient] = useState(null)
   const [selectedPatient, setSelectedPatient] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [internalLoading, setInternalLoading] = useState(false)
 
-  // Convertir paciente de formato BD (name) a formato formulario (firstName/lastName)
+  // 2. Función asíncrona para cargar pacientes
+  const loadPatientsData = async () => {
+    setInternalLoading(true)
+    try {
+      const data = await getPatients()
+      setDisplayPatients(Array.isArray(data) ? data : [])
+    } catch (error) {
+      toast.error("Error cargando pacientes: " + (error?.message || error));
+      setDisplayPatients([])
+    } finally {
+      setInternalLoading(false)
+    }
+  }
+
+  // 3. Cargar datos al montar el componente
+  useEffect(() => {
+    loadPatientsData()
+  }, [])
+
   const preparePatientForForm = (patient) => {
     if (!patient) return null
     const [firstName = '', lastName = ''] = patient.name ? patient.name.split(' ', 2) : ['', '']
@@ -49,11 +70,14 @@ export function PatientsPage() {
     setShowForm(true)
   }
 
-  const handleDeletePatient = (id) => {
+  const handleDeletePatient = async (id) => {
     if (window.confirm('¿Estás seguro de que deseas eliminar este paciente?')) {
-      deletePatient(id)
-      // Recargar desde servicio para asegurar sincronización
-      setDisplayPatients(getPatients())
+      try {
+        await deletePatient(id)
+        await loadPatientsData() // Recargar datos reales de la BD
+      } catch (error) {
+        toast.error("Error al eliminar: " + (error?.message || error));
+      }
     }
   }
 
@@ -62,21 +86,8 @@ export function PatientsPage() {
     setShowDetails(true)
   }
 
-  const handleFormSubmit = (formData) => {
-    if (editingPatient) {
-      // Editar paciente existente
-      const updatedData = {
-        ...formData,
-        name: `${formData.firstName} ${formData.lastName}`.trim(),
-        birthDate: formData.dob,
-        email: formData.email || '',
-        gender: formData.gender || 'M',
-      }
-      updatePatient(editingPatient.id, updatedData)
-      // Recargar desde servicio para asegurar sincronización
-      setDisplayPatients(getPatients())
-    } else {
-      // Crear nuevo paciente
+  const handleFormSubmit = async (formData) => {
+    try {
       const patientData = {
         ...formData,
         name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -84,12 +95,19 @@ export function PatientsPage() {
         email: formData.email || '',
         gender: formData.gender || 'M',
       }
-      addPatient(patientData)
-      // Recargar desde servicio para asegurar sincronización
-      setDisplayPatients(getPatients())
+
+      if (editingPatient) {
+        await updatePatient(editingPatient.id, patientData)
+      } else {
+        await addPatient(patientData)
+      }
+      
+      await loadPatientsData() // Refrescar lista
+      setShowForm(false)
+      setEditingPatient(null)
+    } catch (error) {
+      toast.error("Error al guardar: " + (error?.message || error));
     }
-    setShowForm(false)
-    setEditingPatient(null)
   }
 
   return (
@@ -98,7 +116,7 @@ export function PatientsPage() {
         title="Pacientes"
         subtitle={`${displayPatients.length} pacientes registrados`}
         action={
-          <Button onClick={handleAddPatient}>
+          <Button onClick={handleAddPatient} className="bg-teal-600 text-white">
             + Nuevo Paciente
           </Button>
         }
@@ -112,25 +130,28 @@ export function PatientsPage() {
       />
 
       {showForm && (
-        <PatientForm
-          patient={editingPatient}
-          onSubmit={handleFormSubmit}
-          onCancel={() => {
-            setShowForm(false)
-            setEditingPatient(null)
-          }}
-        />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+           <div className="bg-white p-6 rounded-xl max-w-md w-full">
+            <PatientForm
+              patient={editingPatient}
+              onSubmit={handleFormSubmit}
+              onCancel={() => {
+                setShowForm(false)
+                setEditingPatient(null)
+              }}
+            />
+           </div>
+        </div>
       )}
 
       <PatientsTable
         patients={displayPatients}
-        loading={loading}
+        loading={hookLoading || internalLoading}
         onEdit={handleEditPatient}
         onDelete={handleDeletePatient}
         onView={handleViewPatient}
       />
 
-      {/* Patient Details Modal */}
       <Modal
         isOpen={showDetails}
         onClose={() => {
@@ -138,27 +159,22 @@ export function PatientsPage() {
           setSelectedPatient(null)
         }}
         title="Detalles del Paciente"
-        size="lg"
       >
         {selectedPatient && (
-          <div className="space-y-4">
+          <div className="space-y-4 p-4">
             <div>
-              <p className="text-sm text-slate-500">Nombre</p>
-              <p className="font-semibold text-slate-900">{selectedPatient.name}</p>
+              <p className="text-sm text-slate-500">Nombre Completo</p>
+              <p className="font-semibold text-slate-900">{selectedPatient.name || `${selectedPatient.firstName} ${selectedPatient.lastName}`}</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-slate-500">Email</p>
-                <p className="font-semibold text-slate-900">{selectedPatient.email}</p>
+                <p className="text-sm text-slate-500">DNI</p>
+                <p className="font-semibold text-slate-900">{selectedPatient.dni}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-500">Teléfono</p>
                 <p className="font-semibold text-slate-900">{selectedPatient.phone}</p>
               </div>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Historial Médico</p>
-              <p className="font-semibold text-slate-900">{selectedPatient.medicalHistory || 'N/A'}</p>
             </div>
           </div>
         )}

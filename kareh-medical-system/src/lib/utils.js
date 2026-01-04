@@ -4,6 +4,28 @@ export function cn(...classes) {
   return clsx(classes)
 }
 
+/**
+ * Formats a date string or object into 'yyyy-MM-dd' format for date inputs.
+ * @param {string | Date} date - The date to format.
+ * @returns {string} The formatted date string.
+ */
+export function formatDateForInput(date) {
+  if (!date) return '';
+  try {
+    const d = new Date(date);
+    // Adjust for timezone offset to prevent off-by-one-day errors
+    d.setMinutes(d.getMinutes() + d.getTimezoneOffset());
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return '';
+  }
+}
+
+
 export function formatDate(date) {
   return new Date(date).toLocaleDateString('es-ES', {
     year: 'numeric',
@@ -88,3 +110,4 @@ export function generateColor(index) {
   ]
   return colors[index % colors.length]
 }
+

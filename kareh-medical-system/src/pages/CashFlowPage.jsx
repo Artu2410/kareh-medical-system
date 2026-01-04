@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, Input, Button } from '@/components/ui'
 import { TrendingUp, TrendingDown, DollarSign, Plus, X } from 'lucide-react'
 import { getCashFlows, createCashFlow } from '@/services'
+import { CashFlowCharts } from '@/components/cashflow/CashFlowCharts';
 
 export function CashFlowPage() {
   const [flows, setFlows] = useState([])
@@ -10,7 +12,8 @@ export function CashFlowPage() {
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState('all') // all, income, expense
-  
+  const [formErrors, setFormErrors] = useState({});
+
   const initialFormState = {
     type: 'INCOME',
     amount: '',
@@ -49,17 +52,30 @@ export function CashFlowPage() {
     } catch (err) {
       setError(err.message);
       setFlows([]);
+      toast.error("Error cargando movimientos: " + (err?.message || err));
     } finally {
       setLoading(false);
     }
   };
 
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.amount || isNaN(formData.amount) || Number(formData.amount) <= 0) newErrors.amount = 'Monto obligatorio y mayor a 0';
+    if (!formData.concept.trim()) newErrors.concept = 'El concepto es obligatorio';
+    if (!formData.date) newErrors.date = 'La fecha es obligatoria';
+    setFormErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
+    if (!validate()) {
+      toast.error('Corrige los errores antes de guardar');
+      return;
+    }
     setLoading(true)
     setError(null)
     try {
-      // 1. Enviar datos al backend
       await createCashFlow(
         formData.type,
         parseFloat(formData.amount),
@@ -70,16 +86,13 @@ export function CashFlowPage() {
         formData.receipt,
         formData.date
       )
-
-      // 2. Limpiar formulario y cerrar
       setFormData(initialFormState)
       setShowForm(false)
-
-      // 3. RECARGAR DATOS: Esto actualiza la lista y el balance automáticamente
       await loadFlows()
-      
+      toast.success('Movimiento registrado correctamente');
     } catch (err) {
       setError(err.message)
+      toast.error("Error al registrar movimiento: " + (err?.message || err));
     } finally {
       setLoading(false)
     }
@@ -219,6 +232,7 @@ export function CashFlowPage() {
                     onChange={(e) => setFormData({...formData, amount: e.target.value})}
                     placeholder="0.00"
                     required
+                    error={formErrors.amount}
                   />
                 </div>
 
@@ -231,6 +245,7 @@ export function CashFlowPage() {
                     value={formData.date}
                     onChange={(e) => setFormData({...formData, date: e.target.value})}
                     required
+                    error={formErrors.date}
                   />
                 </div>
 
@@ -272,6 +287,7 @@ export function CashFlowPage() {
                     onChange={(e) => setFormData({...formData, concept: e.target.value})}
                     placeholder="Descripción rápida"
                     required
+                    error={formErrors.concept}
                   />
                 </div>
 
@@ -399,6 +415,8 @@ export function CashFlowPage() {
           )}
         </CardContent>
       </Card>
+      {/* GRÁFICOS */}
+      <CashFlowCharts flows={flows} />
     </div>
   )
 }

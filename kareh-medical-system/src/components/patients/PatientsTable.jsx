@@ -14,13 +14,17 @@ export function PatientsTable({
     return (
       <Card>
         <CardContent className="py-8">
-          <div className="text-center text-slate-500">Cargando pacientes...</div>
+          <div className="flex justify-center items-center gap-2 text-slate-500">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
+            Cargando pacientes...
+          </div>
         </CardContent>
       </Card>
     )
   }
 
-  if (!patients || patients.length === 0) {
+  // Protección: Si patients no es un array o está vacío
+  if (!Array.isArray(patients) || patients.length === 0) {
     return (
       <Card>
         <CardContent className="py-8">
@@ -34,7 +38,7 @@ export function PatientsTable({
     <div className="space-y-3">
       {patients.map((patient, index) => (
         <motion.div
-          key={patient.id}
+          key={patient.id || index} // Usar index como fallback si no hay ID
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
@@ -45,43 +49,50 @@ export function PatientsTable({
                 {/* Left side - Patient info */}
                 <div className="flex-1">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 border border-teal-100">
                       <span className="font-semibold text-teal-600">
-                        {patient.name.charAt(0)}
+                        {/* SOLUCIÓN AL ERROR: ?. y || 'P' */}
+                        {patient?.name?.charAt(0) || patient?.firstName?.charAt(0) || 'P'}
                       </span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900">{patient.name}</h3>
+                      <h3 className="font-semibold text-slate-900">
+                        {patient?.name || `${patient?.firstName || 'Sin'} ${patient?.lastName || 'Nombre'}`}
+                      </h3>
                       <p className="text-sm text-slate-500 mt-1">
-                        {calculateAge(patient.birthDate)} años • {patient.gender === 'M' ? 'Masculino' : 'Femenino'}
+                        {patient?.dob ? `${calculateAge(patient.dob)} años` : 'Edad N/A'} • {{'M': 'Masculino', 'F': 'Femenino', 'O': 'Otro'}[patient?.gender] || 'No especificado'}
                       </p>
                       <div className="flex flex-wrap gap-3 mt-2">
-                        <a
-                          href={`mailto:${patient.email}`}
-                          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          {patient.email}
-                        </a>
-                        <a
-                          href={`tel:${patient.phone}`}
-                          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          {patient.phone}
-                        </a>
+                        {patient?.email && (
+                          <a
+                            href={`mailto:${patient.email}`}
+                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-teal-600"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            {patient.email}
+                          </a>
+                        )}
+                        {patient?.phone && (
+                          <a
+                            href={`tel:${patient.phone}`}
+                            className="flex items-center gap-1 text-xs text-slate-500 hover:text-teal-600"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            {patient.phone}
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Middle - Medical info */}
-                <div className="hidden lg:flex flex-col gap-2">
-                  {patient.medicalHistory && (
-                    <p className="text-xs text-slate-500 italic">
-                      {patient.medicalHistory.slice(0, 30)}...
+                <div className="hidden lg:flex flex-col gap-2 max-w-[200px]">
+                  {patient?.medicalHistory && (
+                    <p className="text-xs text-slate-400 italic truncate">
+                      {patient.medicalHistory}
                     </p>
                   )}
                 </div>
@@ -89,10 +100,10 @@ export function PatientsTable({
                 {/* Right side - Status and Actions */}
                 <div className="flex items-center gap-2">
                   <Badge
-                    variant={patient.status === 'active' ? 'success' : 'default'}
-                    size="sm"
+                    variant={patient?.status === 'active' ? 'success' : 'default'}
+                    className={patient?.status === 'active' ? 'bg-green-100 text-green-700' : ''}
                   >
-                    {patient.status === 'active' ? 'Activo' : 'Inactivo'}
+                    {patient?.status === 'active' ? 'Activo' : 'Inactivo'}
                   </Badge>
 
                   <div className="flex gap-1 ml-4">
@@ -103,9 +114,8 @@ export function PatientsTable({
                         e.stopPropagation()
                         onView?.(patient)
                       }}
-                      title="Ver detalles"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-4 h-4 text-slate-400" />
                     </Button>
                     <Button
                       size="sm"
@@ -114,18 +124,17 @@ export function PatientsTable({
                         e.stopPropagation()
                         onEdit?.(patient)
                       }}
-                      title="Editar"
                     >
-                      <Edit2 className="w-4 h-4" />
+                      <Edit2 className="w-4 h-4 text-slate-400" />
                     </Button>
                     <Button
                       size="sm"
-                      variant="danger"
+                      variant="ghost"
+                      className="hover:bg-red-50 hover:text-red-600"
                       onClick={(e) => {
                         e.stopPropagation()
                         onDelete?.(patient.id)
                       }}
-                      title="Eliminar"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
