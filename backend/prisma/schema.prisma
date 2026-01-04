@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Patient {
+  id            String    @id @default(uuid())
+  firstName     String
+  lastName      String
+  dni           String    @unique
+  dob           DateTime
+  phone         String?
+  address       String?
+  hasCancer     Boolean   @default(false)
+  hasPacemaker  Boolean   @default(false)
+  hasBypass     Boolean   @default(false)
+  socialWork    SocialWork? @relation(fields: [socialWorkId], references: [id])
+  socialWorkId  String?
+  histories     MedicalHistory[]
+  appointments  Appointment[]
+  packageGroups PackageGroup[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([dni])
+  @@index([socialWorkId])
+}
+
+model SocialWork {
+  id    String   @id @default(uuid())
+  name  String   @unique
+  patients Patient[]
+}
+
+model Professional {
+  id           String   @id @default(uuid())
+  firstName    String
+  lastName     String
+  license      String?  @unique
+  specialization String?
+  appointments Appointment[]
+  evolutions   Evolution[]
+  cashFlows    CashFlow[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Appointment {
+  id             String   @id @default(uuid())
+  patient        Patient  @relation(fields: [patientId], references: [id])
+  patientId      String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  professionalId String
+  date           DateTime
+  slot           String
+  therapyType    String   @default("FKT")
+  appointmentType String   @default("single")
+  diagnosis      String?
+  status         String   @default("SCHEDULED")
+  isFirstSession Boolean  @default(false)
+  packageGroup   PackageGroup? @relation(fields: [packageGroupId], references: [id])
+  packageGroupId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  evolutions     Evolution[]
+
+  @@index([patientId])
+  @@index([date])
+  @@index([packageGroupId])
+  @@index([professionalId])
+}
+
+model PackageGroup {
+  id           String   @id @default(uuid())
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  patientId    String
+  appointments Appointment[]
+  createdAt    DateTime @default(now())
+
+  @@index([patientId])
+}
+
+model MedicalHistory {
+  id         String   @id @default(uuid())
+  patient    Patient  @relation(fields: [patientId], references: [id])
+  patientId  String
+  createdAt  DateTime @default(now())
+  diagnoses  Diagnosis[]
+}
+
+model Diagnosis {
+  id               String   @id @default(uuid())
+  history          MedicalHistory @relation(fields: [historyId], references: [id])
+  historyId        String
+  description      String
+  createdAt        DateTime @default(now())
+}
+
+model Evolution {
+  id            String   @id @default(uuid())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  appointmentId String
+  professional  Professional @relation(fields: [professionalId], references: [id])
+  professionalId String
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+model Config {
+  id        String @id @default(uuid())
+  key       String @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model CashFlow {
+  id         String   @id @default(uuid())
+  type       String
+  amount     Float
+  concept    String
+  category   String   @default("OTHER")
+  method     String
+  receipt    String?
+  notes      String?
+  professional Professional? @relation(fields: [professionalId], references: [id])
+  professionalId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([type])
+  @@index([createdAt])
+}
+
