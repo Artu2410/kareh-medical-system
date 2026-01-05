@@ -315,31 +315,20 @@ export function PatientsPage() {
       </div>
 
       {/* CSS para animaciones */}
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes slideIn {
-          from { 
-            opacity: 0;
-            transform: translateY(20px) scale(0.95);
+      <style
+        dangerouslySetInnerHTML={{ __html: `
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
           }
-          to { 
-            opacity: 1;
-            transform: translateY(0) scale(1);
+          @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
           }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        
-        .animate-slideIn {
-          animation: slideIn 0.3s ease-out;
-        }
-      `}</style>
+          .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+          .animate-slideIn { animation: slideIn 0.3s ease-out; }
+        ` }}
+      />
     </>
   );
 }

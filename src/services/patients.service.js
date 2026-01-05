@@ -56,11 +56,16 @@ export async function getPatientById(id) {
  * POST /api/patients
  */
 export async function addPatient(patientData) {
-  console.log('🔄 Enviando datos del paciente:', patientData);
+  // Convertir dob a string ISO si es string o Date
+  const formattedData = {
+    ...patientData,
+    dob: patientData.dob ? new Date(patientData.dob).toISOString() : undefined,
+  };
+  console.log('🔄 Enviando datos del paciente:', formattedData);
   const response = await fetch(`${API_BASE_URL}/patients`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify(patientData)
+    body: JSON.stringify(formattedData)
   });
   return handleResponse(response);
 }
@@ -69,11 +74,16 @@ export async function addPatient(patientData) {
  * PUT /api/patients/:id
  */
 export async function updatePatient(id, patientData) {
-  console.log(`🔄 Actualizando paciente ${id}:`, patientData);
+  // Convertir dob a string ISO si es string o Date
+  const formattedData = {
+    ...patientData,
+    dob: patientData.dob ? new Date(patientData.dob).toISOString() : undefined,
+  };
+  console.log(`🔄 Actualizando paciente ${id}:`, formattedData);
   const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
     method: 'PUT',
     headers: getHeaders(),
-    body: JSON.stringify(patientData)
+    body: JSON.stringify(formattedData)
   });
   return handleResponse(response);
 }

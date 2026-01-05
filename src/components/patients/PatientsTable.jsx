@@ -1,3 +1,4 @@
+import React from 'react';
 import { Card, CardContent, Badge, Button, Input } from '@/components/ui'
 import { Mail, Phone, Edit2, Trash2, Eye } from 'lucide-react'
 import { motion } from 'framer-motion'

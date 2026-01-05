@@ -1,37 +1,26 @@
 // src/services/index.js
 
-// Pacientes (Sincronizado con el archivo que acabamos de corregir)
-export { 
-  getPatients, 
-  getPatientById, 
-  searchPatients, 
-  addPatient, 
-  updatePatient, 
-  deletePatient, 
-  getPatientsByStatus 
-} from './patients.service';
+// Pacientes
+export * from './patients.service';
 
-// Citas / Agenda
+// Citas (Exportación explícita para evitar errores de Vite)
 export { 
-  addAppointment, // Usualmente usamos uno de los dos, verifica tu archivo .js
-  getAppointmentSlots,
+  addAppointment,
+  createAppointment,
   getAppointments,
   getAppointmentsByDate,
   getAppointmentsByDoctor,
+  getAppointmentSlots,
   updateAppointment,
   deleteAppointment,
   getAvailability, 
   searchPatientByDni, 
   getPatientAppointments,
   createEvolution,
-  addDiagnosis,
+  addDiagnosis
 } from './appointments.service';
 
-// Caja Chica
-export { createCashFlow, getCashFlows, getCashBalance } from './cashflow.service';
-
-// Estadísticas
-export { getStats, getAppointmentStats, getPatientDemographics, getAppointmentStatusStats, getTrendData } from './stats.service';
-
-// Auditoría
-export { logAudit, getAuditLogs, getAuditLogsByResource, deleteAuditLog, clearAuditLogs } from './audit.service';
+// Otros
+export * from './cashflow.service';
+export * from './stats.service';
+export * from './audit.service';
